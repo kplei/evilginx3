@@ -1,6 +1,6 @@
 # Found a scenario where fido was set as the default MFA method with the string '"authMethodId":"FidoKey","data":"FidoKey","display":"","isDefault":true,' in a response from 'https://login.microsoftonline.com/common/login'. 
 # This phishlet changes "authMethodId":"PhoneAppNotification" to the default instead, but you may need to modify the auth method if this is not an option. Check the same response for available MFA methods.  
-# This configration also seems to cause a passkey MFA prompt when you relay the session tokens.
+# This configration also seems to cause a passkey MFA prompt when you replay the session tokens, even though they are valid.
 # However, if you intercept the resonse from 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=....' (with Burp or similar tools) you can simply remove the string '"fIsFidoSupported":true,' and forward along the response to bypass the passkey prompt. 
 
 name: "Microsoft 365 Enterprise"
